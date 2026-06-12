@@ -54,4 +54,4 @@ choice = int(input("> "))
 
 from download import download_film
 
-download_film(films[i-1])
+download_film(films[choice-1])
