@@ -58,4 +58,9 @@ def list_films():
         films.append(Stored(f[0],f[1],f[2],f[3],f[4]))
     return films
 
+def get_path(id : int):
+    query = "SELECT path FROM films WHERE id = ?"
+    with get_conn() as conn:
+        path = conn.execute(query, (id,)).fetchone()
+    return path[0]
     

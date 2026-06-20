@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0E0B09" />
+  <title>Home-Netflix — Export</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="beam"></div>
+  <div class="grain"></div>
+
+  <main class="wrap">
+    <header class="masthead">
+      <div class="brand">
+        <p class="eyebrow">Print shipping</p>
+        <h1 class="wordmark">Home-<em>Netflix</em></h1>
+        <p class="tagline">Pick a reel · send the file out to a folder of your own.</p>
+      </div>
+      <div class="masthead-side">
+        <span class="chip" id="shelfChip"><span class="dot"></span> <span id="shelfCount">counting…</span></span>
+        <a class="btn btn--ghost" href="offline.html">Shelf →</a>
+        <a class="btn btn--ghost" href="/">Find a film →</a>
+      </div>
+    </header>
+    <hr class="rule" />
+
+    <!-- Shipping dock: where the selected reel gets sent -->
+    <div class="dock">
+      <div class="field">
+        <label>Reel · <span class="sel none" id="selName">none picked yet</span></label>
+        <button class="destbtn" id="destBtn" type="button">
+          <span class="ic">📁</span>
+          <span class="destlabel none" id="destLabel">Choose a destination folder…</span>
+          <span class="destchange">Change</span>
+        </button>
+        <input id="dest" type="hidden" />
+      </div>
+      <button class="btn btn--amber go" id="ship" disabled>Export</button>
+    </div>
+    <p class="shipline" id="shipline" aria-live="polite">Pick a finished reel below, choose a folder, hit Export.</p>
+
+    <div class="sectionhead">
+      <h2>Finished reels</h2>
+      <span class="count" id="status">Loading…</span>
+    </div>
+
+    <div class="shelf" id="results" aria-live="polite"></div>
+
+    <details class="booth">
+      <summary>Projection booth log</summary>
+      <pre id="raw">—</pre>
+    </details>
+  </main>
+
+  <!-- Folder browser: walks the server's filesystem to pick a destination -->
+  <div class="modal" id="pick" role="dialog" aria-modal="true" aria-label="Choose destination folder">
+    <div class="stage browser">
+      <div class="head">
+        <p class="now">Choose destination</p>
+        <button class="btn btn--ghost" id="pickClose">Close ✕</button>
+      </div>
+      <div class="shortcuts" id="shortcuts"></div>
+      <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+      <ul class="dirlist" id="dirlist"></ul>
+      <div class="browser-actions">
+        <span class="hereinfo" id="hereInfo">—</span>
+        <button class="btn btn--amber" id="useFolder">Select this folder</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = location.origin.startsWith("http") ? location.origin : "http://localhost:8000";
+
+    const statusEl  = document.getElementById("status");
+    const results   = document.getElementById("results");
+    const raw       = document.getElementById("raw");
+    const shelfChip = document.getElementById("shelfChip");
+    const shelfCount= document.getElementById("shelfCount");
+    const dest      = document.getElementById("dest");
+    const destLabel = document.getElementById("destLabel");
+    const shipBtn   = document.getElementById("ship");
+    const shipline  = document.getElementById("shipline");
+    const selName   = document.getElementById("selName");
+
+    const DEST_KEY = "homeflix.exportDest";
+    let selected = null;
+
+    // one place sets the destination: updates hidden value, label, storage, button state
+    function setDest(path) {
+      dest.value = path || "";
+      if (path) {
+        const name = path.replace(/\/+$/, "").split("/").pop() || path;
+        destLabel.textContent = path;              // full path (rtl-clipped to keep name visible)
+        destLabel.title = path;
+        destLabel.classList.remove("none");
+        localStorage.setItem(DEST_KEY, path);
+      } else {
+        destLabel.textContent = "Choose a destination folder…";
+        destLabel.removeAttribute("title");
+        destLabel.classList.add("none");
+        localStorage.removeItem(DEST_KEY);
+      }
+      refreshShipBtn();
+    }
+    // restore last-used folder
+    setDest(localStorage.getItem(DEST_KEY) || "");
+
+    function setLine(msg, kind = "") {
+      shipline.textContent = msg;
+      shipline.className = "shipline" + (kind ? " " + kind : "");
+    }
+
+    function refreshShipBtn() {
+      shipBtn.disabled = !(selected && dest.value.trim());
+    }
+
+    function select(film, card) {
+      // single pick — clear the previous highlight
+      document.querySelectorAll(".film.selected").forEach((el) => el.classList.remove("selected"));
+      if (selected && selected.id === film.id) {
+        selected = null;
+        selName.textContent = "none picked yet";
+        selName.classList.add("none");
+      } else {
+        selected = film;
+        card.classList.add("selected");
+        selName.textContent = film.title ?? "Untitled";
+        selName.classList.remove("none");
+      }
+      refreshShipBtn();
+    }
+
+    async function ship() {
+      if (!selected || !dest.value.trim()) return;
+      const newPath = dest.value.trim();
+      // send only id + destination — backend resolves the source path and updates the shelf
+      const url = `${API}/api/export?id=${encodeURIComponent(selected.id)}`
+                + `&new_path=${encodeURIComponent(newPath)}`;
+
+      const original = shipBtn.textContent;
+      shipBtn.disabled = true;
+      shipBtn.textContent = "Exporting…";
+      setLine(`Sending “${selected.title}” to ${newPath}…`);
+
+      try {
+        const res = await fetch(url, { method: "POST" });
+        let body = null;
+        try { body = await res.json(); } catch { /* server returned non-JSON (e.g. 500 trace) */ }
+        raw.textContent = `POST ${url}\n→ ${res.status}\n${body ? JSON.stringify(body, null, 2) : "(no JSON body)"}`;
+
+        if (res.ok && body && body.status === "ok") {
+          shipBtn.textContent = "Exported ✓";
+          setLine(`“${selected.title}” landed in ${newPath} and left the shelf.`, "ok");
+          // export deletes the film server-side — drop the selection and refresh the grid
+          selected = null;
+          selName.textContent = "none picked yet";
+          selName.classList.add("none");
+          loadFilms();
+        } else {
+          shipBtn.textContent = original;
+          // HTTPException sends {"detail": "..."} — show the real reason when present
+          const reason = body && body.detail ? body.detail : shipError(res.status);
+          setLine(reason, "err");
+        }
+      } catch (e) {
+        shipBtn.textContent = original;
+        setLine("Couldn't reach the booth. Start the backend and try again.", "err");
+        raw.textContent = String(e);
+      }
+      setTimeout(() => { shipBtn.textContent = original; refreshShipBtn(); }, 2600);
+    }
+    shipBtn.onclick = ship;
+
+    // the API throws bare exceptions (→ 500), so map status to a plain-language guess
+    function shipError(status) {
+      if (status === 404) return "Source reel not found on disk — was it moved already?";
+      if (status === 422) return "The folder path looks wrong. Give a full path to an existing folder.";
+      return "The booth refused: the destination folder must already exist, and a file by that name can't already be there.";
+    }
+
+    /* ---- Folder browser: navigates the server's filesystem ---- */
+    const pick      = document.getElementById("pick");
+    const dirlist   = document.getElementById("dirlist");
+    const crumbs    = document.getElementById("crumbs");
+    const shortcuts = document.getElementById("shortcuts");
+    const hereInfo  = document.getElementById("hereInfo");
+    let browsePath = null;   // absolute path currently shown
+
+    async function navigate(path) {
+      const q = path ? `?path=${encodeURIComponent(path)}` : "";
+      try {
+        const res = await fetch(`${API}/api/browse${q}`);
+        const data = await res.json();
+        if (!res.ok) {
+          // bad start path (e.g. stale saved folder) → fall back to home once
+          if (path && browsePath === null) { navigate(null); return; }
+          hereInfo.textContent = data.detail || "Can't open that folder";
+          return;
+        }
+        browsePath = data.path;
+        renderCrumbs(data.path);
+        renderShortcuts(data.shortcuts || []);
+        renderDirs(data.dirs);
+        const name = data.path.replace(/\/+$/, "").split("/").pop() || data.path;
+        hereInfo.innerHTML = `Export into <b>${escapeHtml(name)}</b>`;
+      } catch (e) {
+        hereInfo.textContent = "Couldn't reach the booth.";
+        dirlist.innerHTML = "";
+      }
+    }
+
+    // clickable path segments — jump straight to any ancestor
+    function renderCrumbs(path) {
+      crumbs.innerHTML = "";
+      const parts = path.split("/").filter(Boolean);
+      const mkSeg = (label, target, isHere) => {
+        const b = document.createElement("button");
+        b.className = "seg" + (isHere ? " here" : "");
+        b.textContent = label;
+        if (!isHere) b.onclick = () => navigate(target);
+        return b;
+      };
+      crumbs.appendChild(mkSeg("/", "/", parts.length === 0));
+      let acc = "";
+      parts.forEach((p, i) => {
+        acc += "/" + p;
+        if (i > 0) { const s = document.createElement("span"); s.className = "sep"; s.textContent = "/"; crumbs.appendChild(s); }
+        crumbs.appendChild(mkSeg(p, acc, i === parts.length - 1));
+      });
+    }
+
+    function renderShortcuts(list) {
+      shortcuts.innerHTML = "";
+      list.forEach((s) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = s.name;
+        b.onclick = () => navigate(s.path);
+        shortcuts.appendChild(b);
+      });
+    }
+
+    function renderDirs(dirs) {
+      dirlist.innerHTML = "";
+      if (!dirs.length) {
+        const none = document.createElement("li");
+        none.className = "empty";
+        none.textContent = "no sub-folders here — select this one, or step back up";
+        dirlist.appendChild(none);
+        return;
+      }
+      dirs.forEach((name) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="ic">📁</span> ${escapeHtml(name)} <span class="arr">→</span>`;
+        li.onclick = () => navigate(browsePath.replace(/\/+$/, "") + "/" + name);
+        dirlist.appendChild(li);
+      });
+    }
+
+    function openBrowser() {
+      pick.classList.add("open");
+      browsePath = null;
+      navigate(dest.value.trim() || null); // start from saved folder if valid, else home
+    }
+    function closeBrowser() { pick.classList.remove("open"); }
+
+    document.getElementById("destBtn").onclick = openBrowser;
+    document.getElementById("pickClose").onclick = closeBrowser;
+    document.getElementById("useFolder").onclick = () => {
+      if (browsePath) setDest(browsePath);
+      closeBrowser();
+    };
+    pick.onclick = (e) => { if (e.target === pick) closeBrowser(); };
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && pick.classList.contains("open")) closeBrowser(); });
+
+    async function loadFilms() {
+      try {
+        const res = await fetch(`${API}/api/films`);
+        const data = await res.json();
+        raw.textContent = JSON.stringify(data, null, 2);
+        if (!Array.isArray(data)) {
+          statusEl.textContent = "unexpected response — see booth log";
+          shelfCount.textContent = "—";
+          return;
+        }
+        const ready = data.filter((f) => (f.status ?? "").toLowerCase() === "completed");
+        shelfChip.classList.toggle("live", ready.length > 0);
+        shelfCount.textContent = `${ready.length} exportable`;
+        statusEl.textContent = `${ready.length} ready`;
+        render(data);
+      } catch (e) {
+        statusEl.textContent = "offline";
+        shelfCount.textContent = "no connection";
+        results.innerHTML =
+          `<div class="empty-state" style="grid-column:1/-1">
+             <p class="big">Couldn't reach the shelf.</p>
+             <p>The server isn't responding. Start the backend and reload.</p>
+             <a class="btn btn--amber" href="offline.html">Back to the shelf →</a>
+           </div>`;
+      }
+    }
+
+    function render(films) {
+      results.innerHTML = "";
+      const exportable = films.filter((f) => (f.status ?? "").toLowerCase() === "completed").length;
+      if (!exportable) {
+        results.innerHTML =
+          `<div class="empty-state" style="grid-column:1/-1">
+             <p class="big">Nothing finished to ship yet.</p>
+             <p>Only fully downloaded reels can be sent out. Pull one down first.</p>
+             <a class="btn btn--amber" href="/">Find a film →</a>
+           </div>`;
+        return;
+      }
+      films.forEach((f, i) => {
+        const status = (f.status ?? "").toLowerCase();
+        const ready = status === "completed" && f.path;
+        const label = status === "completed" ? "Ready" : status === "downloading" ? "Downloading" : (f.status ?? "—");
+        const card = document.createElement("article");
+        card.className = "film" + (ready ? " selectable" : " notready");
+        card.style.setProperty("--i", i);
+        const cover = f.cover ? `/covers/${encodeURIComponent(f.cover)}` : "";
+        card.innerHTML = `
+          <div class="frame${cover ? "" : " empty"}">
+            ${ready ? `<span class="pick" aria-hidden="true"></span>` : ""}
+            ${cover
+              ? `<img src="${cover}" alt="${escapeHtml(f.title ?? "")} cover"
+                   onerror="this.parentElement.classList.add('empty');this.remove();this.parentElement.append('no artwork')" />`
+              : `no artwork`}
+          </div>
+          <div class="info">
+            <div class="name">${escapeHtml(f.title ?? "Untitled")}</div>
+            <div class="foot">
+              <span class="badge ${status}">${escapeHtml(label)}</span>
+            </div>
+          </div>`;
+        if (ready) card.querySelector(".frame").onclick = () => select(f, card);
+        results.appendChild(card);
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    loadFilms();
+  </script>
+</body>
+</html>
