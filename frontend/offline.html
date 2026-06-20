@@ -3,96 +3,53 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Home-Netflix — My Library</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; font-family: system-ui, sans-serif;
-      background: #141414; color: #eee; padding: 24px;
-    }
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    h1 { color: #e50914; margin: 0 0 4px; }
-    .sub { color: #888; margin-bottom: 24px; font-size: 14px; }
-    button {
-      padding: 10px 16px; font-size: 14px; border: none; border-radius: 4px;
-      background: #e50914; color: #fff; cursor: pointer; font-weight: 600;
-    }
-    button.alt { background: #333; }
-    .status { margin-bottom: 16px; font-size: 14px; min-height: 18px; color: #aaa; }
-    .grid {
-      display: grid; gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    }
-    .card {
-      background: #222; border-radius: 6px; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
-    .card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; background: #000; display: block; }
-    .card .ph {
-      width: 100%; aspect-ratio: 2/3; background: #000;
-      display: flex; align-items: center; justify-content: center;
-      color: #444; font-size: 13px;
-    }
-    .card .body { padding: 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-    .card .title { font-size: 14px; font-weight: 600; }
-    .card .meta { font-size: 11px; color: #888; word-break: break-all; }
-    .badge {
-      align-self: flex-start; font-size: 10px; font-weight: 700; text-transform: uppercase;
-      padding: 2px 6px; border-radius: 3px; background: #444; color: #ddd;
-    }
-    .badge.completed { background: #166534; color: #d1fae5; }
-    .badge.downloading { background: #92400e; color: #fde68a; }
-    .poster { position: relative; }
-    .card.playable .poster { cursor: pointer; }
-    .card.playable .poster::after {
-      content: "▶"; position: absolute; inset: 0; display: flex;
-      align-items: center; justify-content: center; font-size: 38px; color: #fff;
-      background: rgba(0,0,0,.35); opacity: 0; transition: opacity .15s;
-    }
-    .card.playable .poster:hover::after { opacity: 1; }
-    .modal {
-      position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 50;
-      display: none; align-items: center; justify-content: center; padding: 24px;
-    }
-    .modal.open { display: flex; }
-    .modal .box { width: min(960px, 100%); }
-    .modal .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .modal .head .t { font-weight: 600; }
-    .modal video { width: 100%; max-height: 80vh; background: #000; border-radius: 6px; }
-    .modal .x { background: #333; }
-    pre {
-      background: #000; padding: 12px; border-radius: 4px; overflow: auto;
-      font-size: 12px; color: #6f6; max-height: 240px;
-    }
-  </style>
+  <meta name="theme-color" content="#0E0B09" />
+  <title>Home-Netflix — My shelf</title>
+  <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <div class="top">
-    <div>
-      <h1>Home-Netflix</h1>
-      <div class="sub">Films you've already downloaded · works offline</div>
-    </div>
-    <button class="alt" id="searchBtn">Search online →</button>
-  </div>
+  <div class="beam"></div>
+  <div class="grain"></div>
 
-  <div class="status" id="status">Loading your library…</div>
-  <div class="grid" id="results"></div>
-
-  <div class="modal" id="modal">
-    <div class="box">
-      <div class="head">
-        <div class="t" id="modalTitle"></div>
-        <button class="x" id="modalClose">Close ✕</button>
+  <main class="wrap">
+    <header class="masthead">
+      <div class="brand">
+        <p class="eyebrow">Private screening room</p>
+        <h1 class="wordmark">Home-<em>Netflix</em></h1>
+        <p class="tagline">Your shelf · plays without a connection.</p>
       </div>
-      <video id="player" controls></video>
+      <div class="masthead-side">
+        <span class="chip" id="shelfChip"><span class="dot"></span> <span id="shelfCount">counting…</span></span>
+        <a class="btn btn--ghost" href="/">Find a film →</a>
+      </div>
+    </header>
+    <hr class="rule" />
+
+    <div class="sectionhead">
+      <h2>On the shelf</h2>
+      <span class="count" id="status">Loading…</span>
+    </div>
+
+    <div class="shelf" id="results" aria-live="polite"></div>
+
+    <details class="booth">
+      <summary>Projection booth log</summary>
+      <pre id="raw">—</pre>
+    </details>
+  </main>
+
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Now showing">
+    <div class="stage">
+      <div class="head">
+        <div>
+          <p class="now">Now showing</p>
+          <div class="t" id="modalTitle"></div>
+        </div>
+        <button class="btn btn--ghost" id="modalClose">Close ✕</button>
+      </div>
+      <video id="player" controls playsinline></video>
     </div>
   </div>
-
-  <details style="margin-top:24px">
-    <summary style="cursor:pointer;color:#888">Raw response</summary>
-    <pre id="raw">—</pre>
-  </details>
 
   <script>
     const API = location.origin.startsWith("http") ? location.origin : "http://localhost:8000";
@@ -100,8 +57,8 @@
     const statusEl = document.getElementById("status");
     const results = document.getElementById("results");
     const raw = document.getElementById("raw");
-
-    document.getElementById("searchBtn").onclick = () => { location.href = "/"; };
+    const shelfChip = document.getElementById("shelfChip");
+    const shelfCount = document.getElementById("shelfCount");
 
     const modal = document.getElementById("modal");
     const player = document.getElementById("player");
@@ -129,38 +86,68 @@
         const data = await res.json();
         raw.textContent = JSON.stringify(data, null, 2);
         if (!Array.isArray(data)) {
-          statusEl.textContent = "Unexpected response (see raw below).";
+          statusEl.textContent = "unexpected response — see booth log";
+          shelfCount.textContent = "—";
           return;
         }
-        statusEl.textContent = data.length ? `${data.length} downloaded film(s).` : "No downloaded films yet.";
+        const ready = data.filter((f) => (f.status ?? "").toLowerCase() === "completed").length;
+        shelfChip.classList.toggle("live", data.length > 0);
+        shelfCount.textContent = `${data.length} reel${data.length === 1 ? "" : "s"} · ${ready} ready`;
+        statusEl.textContent = `${data.length}`;
         render(data);
       } catch (e) {
-        statusEl.textContent = "Could not load library: " + e.message;
+        statusEl.textContent = "offline";
+        shelfCount.textContent = "no connection";
+        results.innerHTML = "";
+        emptyState("Couldn't reach the shelf.", "The server isn't responding. Start the backend and reload.");
       }
     }
 
     function render(films) {
       results.innerHTML = "";
-      for (const f of films) {
-        const card = document.createElement("div");
+      if (!films.length) {
+        emptyState("Your shelf is empty.", "Find a film and pull it down — it'll wait here for you.");
+        return;
+      }
+      films.forEach((f, i) => {
         const status = (f.status ?? "").toLowerCase();
         const playable = status === "completed" && f.path;
-        card.className = "card" + (playable ? " playable" : "");
+        const label = status === "completed" ? "On shelf" : status === "downloading" ? "Downloading" : (f.status ?? "—");
+        const card = document.createElement("article");
+        card.className = "film" + (playable ? " playable" : "");
+        card.style.setProperty("--i", i);
         const cover = f.cover ? `/covers/${encodeURIComponent(f.cover)}` : "";
         card.innerHTML = `
-          <div class="poster">
+          <div class="frame${cover ? "" : " empty"}">
             ${cover
-              ? `<img src="${cover}" alt="" onerror="this.outerHTML='<div class=\\'ph\\'>no cover</div>'" />`
-              : `<div class="ph">no cover</div>`}
+              ? `<img src="${cover}" alt="${escapeHtml(f.title ?? "")} cover"
+                   onerror="this.parentElement.classList.add('empty');this.remove();this.parentElement.textContent='no artwork'" />`
+              : `no artwork`}
+            ${playable ? `<div class="play"><span>▶</span></div>` : ""}
           </div>
-          <div class="body">
-            <div class="title">${f.title ?? "?"}</div>
-            <span class="badge ${status}">${f.status ?? "?"}</span>
-            <div class="meta">id: ${f.id ?? "?"}<br>path: ${f.path ?? "?"}</div>
+          <div class="info">
+            <div class="name">${escapeHtml(f.title ?? "Untitled")}</div>
+            <div class="foot">
+              <span class="badge ${status}">${escapeHtml(label)}</span>
+            </div>
           </div>`;
-        if (playable) card.querySelector(".poster").onclick = () => openPlayer(f);
+        if (playable) card.querySelector(".frame").onclick = () => openPlayer(f);
         results.appendChild(card);
-      }
+      });
+    }
+
+    function emptyState(big, msg) {
+      results.innerHTML =
+        `<div class="empty-state" style="grid-column:1/-1">
+           <p class="big">${escapeHtml(big)}</p>
+           <p>${escapeHtml(msg)}</p>
+           <a class="btn btn--amber" href="/">Find a film →</a>
+         </div>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
     loadFilms();

@@ -3,124 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Home-Netflix — Search</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; font-family: system-ui, sans-serif;
-      background: #141414; color: #eee; padding: 24px;
-    }
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    h1 { color: #e50914; margin: 0 0 4px; }
-    .sub { color: #888; margin-bottom: 24px; font-size: 14px; }
-    .bar { display: flex; gap: 8px; margin-bottom: 24px; }
-    input {
-      flex: 1; padding: 12px; font-size: 16px; border: none;
-      border-radius: 4px; background: #333; color: #fff;
-    }
-    button {
-      padding: 12px 20px; font-size: 16px; border: none; border-radius: 4px;
-      background: #e50914; color: #fff; cursor: pointer; font-weight: 600;
-    }
-    button:disabled { opacity: .5; cursor: default; }
-    button.alt { background: #333; padding: 10px 16px; font-size: 14px; }
-    button.dl { background: #2563eb; padding: 8px 14px; font-size: 14px; }
-    .grid {
-      display: grid; gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    }
-    .card {
-      background: #222; border-radius: 6px; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
-    .card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; background: #000; }
-    .card .body { padding: 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-    .card .title { font-size: 14px; font-weight: 600; }
-    .card .meta { font-size: 11px; color: #888; word-break: break-all; }
-    .status { margin-bottom: 16px; font-size: 14px; min-height: 18px; }
-    pre {
-      background: #000; padding: 12px; border-radius: 4px; overflow: auto;
-      font-size: 12px; color: #6f6; max-height: 240px;
-    }
-  </style>
+  <meta name="theme-color" content="#0E0B09" />
+  <title>Home-Netflix — Find a film</title>
+  <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <div class="top">
-    <div>
-      <h1>Home-Netflix</h1>
-      <div class="sub">Search &amp; download · API base: <code id="base"></code></div>
+  <div class="beam"></div>
+  <div class="grain"></div>
+
+  <main class="wrap">
+    <header class="masthead">
+      <div class="brand">
+        <p class="eyebrow">Private screening room</p>
+        <h1 class="wordmark">Home-<em>Netflix</em></h1>
+        <p class="tagline">Find a film. Pull it down to your <b>shelf</b>.</p>
+      </div>
+      <div class="masthead-side">
+        <span class="chip live"><span class="dot"></span> Catalog online</span>
+        <a class="btn btn--ghost" href="/offline.html">My shelf →</a>
+      </div>
+    </header>
+    <hr class="rule" />
+
+    <div class="bar">
+      <input id="q" placeholder="a title… e.g. Project Hail Mary" autofocus aria-label="Search a film title" />
+      <button class="btn btn--amber" id="searchBtn">Find</button>
     </div>
-    <button class="alt" id="libraryBtn">My library →</button>
-  </div>
 
-  <div class="bar">
-    <input id="q" placeholder="Search a film title…" autofocus />
-    <button id="searchBtn">Search</button>
-  </div>
+    <p class="statusline" id="status">Type a title and press Find.</p>
 
-  <div class="status" id="status"></div>
-  <div class="grid" id="results"></div>
+    <div class="shelf" id="results" aria-live="polite"></div>
 
-  <details style="margin-top:24px">
-    <summary style="cursor:pointer;color:#888">Raw response</summary>
-    <pre id="raw">—</pre>
-  </details>
+    <details class="booth">
+      <summary>Projection booth log</summary>
+      <pre id="raw">—</pre>
+    </details>
+  </main>
 
   <script>
-    // Same-origin when served by FastAPI; change if you open this file directly.
     const API = location.origin.startsWith("http") ? location.origin : "http://localhost:8000";
-    // Best-guess cover base for streamingcommunity images; adjust if blank.
     const IMG_BASE = "https://cdn.streamingcommunityz.us/images/";
-    document.getElementById("base").textContent = API;
 
     const q = document.getElementById("q");
     const statusEl = document.getElementById("status");
     const results = document.getElementById("results");
     const raw = document.getElementById("raw");
 
-    document.getElementById("libraryBtn").onclick = () => { location.href = "/offline.html"; };
-
     async function search() {
       const title = q.value.trim();
-      if (!title) return;
-      statusEl.textContent = "Searching…";
+      if (!title) { statusEl.textContent = "Type a title first."; q.focus(); return; }
+      statusEl.innerHTML = `Searching the catalog for <b>${escapeHtml(title)}</b>…`;
       results.innerHTML = "";
       try {
         const res = await fetch(`${API}/api/search?title=${encodeURIComponent(title)}`, { method: "POST" });
         const data = await res.json();
         raw.textContent = JSON.stringify(data, null, 2);
         if (!Array.isArray(data)) {
-          statusEl.textContent = "Unexpected response (see raw below).";
+          statusEl.textContent = "The catalog answered in a shape I didn't expect — see the booth log below.";
           return;
         }
-        statusEl.textContent = `${data.length} result(s).`;
+        statusEl.innerHTML = data.length
+          ? `<b>${data.length}</b> film${data.length === 1 ? "" : "s"} found. Pull one down to your shelf.`
+          : "Nothing matched. Try a different spelling or the original title.";
         render(data);
       } catch (e) {
-        statusEl.textContent = "Request failed: " + e.message;
+        statusEl.textContent = "The catalog didn't answer. Check the connection and try again.";
       }
     }
 
     function render(films) {
-      for (const f of films) {
-        const card = document.createElement("div");
-        card.className = "card";
+      films.forEach((f, i) => {
+        const card = document.createElement("article");
+        card.className = "film";
+        card.style.setProperty("--i", i);
+        const cover = f.cover ? IMG_BASE + f.cover : "";
         card.innerHTML = `
-          <img src="${f.cover ? IMG_BASE + f.cover : ""}" alt=""
-               onerror="this.style.opacity=.2" />
-          <div class="body">
-            <div class="title">${f.title ?? "?"}</div>
-            <div class="meta">slug: ${f.slug ?? "?"}<br>id: ${f.id ?? "?"}</div>
-            <button class="dl">Download</button>
+          <div class="frame">
+            ${cover
+              ? `<img src="${cover}" alt="${escapeHtml(f.title ?? "")} cover"
+                   onerror="this.parentElement.classList.add('empty');this.remove();this.parentElement.textContent='no artwork'" />`
+              : `<span>no artwork</span>`}
+          </div>
+          <div class="info">
+            <div class="name">${escapeHtml(f.title ?? "Untitled")}</div>
+            <div class="foot">
+              <button class="btn btn--amber pull">Pull down ↓</button>
+            </div>
           </div>`;
-        card.querySelector(".dl").onclick = () => download(f, card.querySelector(".dl"));
+        if (!cover) card.querySelector(".frame").classList.add("empty");
+        card.querySelector(".pull").onclick = (e) => pull(f, e.currentTarget);
         results.appendChild(card);
-      }
+      });
     }
 
-    async function download(film, btn) {
+    async function pull(film, btn) {
       btn.disabled = true;
-      btn.textContent = "Downloading…";
+      btn.textContent = "Pulling…";
       try {
         const res = await fetch(`${API}/api/download`, {
           method: "POST",
@@ -129,11 +107,16 @@
         });
         const data = await res.json().catch(() => ({}));
         raw.textContent = JSON.stringify(data, null, 2);
-        btn.textContent = res.ok ? "Sent ✓" : "Failed";
+        btn.textContent = res.ok ? "On the shelf ✓" : "Couldn't pull";
       } catch (e) {
-        btn.textContent = "Error";
-        statusEl.textContent = "Download failed: " + e.message;
+        btn.textContent = "Couldn't pull";
+        statusEl.textContent = "The download didn't start. Check the connection and try again.";
       }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
     document.getElementById("searchBtn").onclick = search;
