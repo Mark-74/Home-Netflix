@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Home-Netflix — Search</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, sans-serif;
+      background: #141414; color: #eee; padding: 24px;
+    }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    h1 { color: #e50914; margin: 0 0 4px; }
+    .sub { color: #888; margin-bottom: 24px; font-size: 14px; }
+    .bar { display: flex; gap: 8px; margin-bottom: 24px; }
+    input {
+      flex: 1; padding: 12px; font-size: 16px; border: none;
+      border-radius: 4px; background: #333; color: #fff;
+    }
+    button {
+      padding: 12px 20px; font-size: 16px; border: none; border-radius: 4px;
+      background: #e50914; color: #fff; cursor: pointer; font-weight: 600;
+    }
+    button:disabled { opacity: .5; cursor: default; }
+    button.alt { background: #333; padding: 10px 16px; font-size: 14px; }
+    button.dl { background: #2563eb; padding: 8px 14px; font-size: 14px; }
+    .grid {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+    .card {
+      background: #222; border-radius: 6px; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; background: #000; }
+    .card .body { padding: 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .card .title { font-size: 14px; font-weight: 600; }
+    .card .meta { font-size: 11px; color: #888; word-break: break-all; }
+    .status { margin-bottom: 16px; font-size: 14px; min-height: 18px; }
+    pre {
+      background: #000; padding: 12px; border-radius: 4px; overflow: auto;
+      font-size: 12px; color: #6f6; max-height: 240px;
+    }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>Home-Netflix</h1>
+      <div class="sub">Search &amp; download · API base: <code id="base"></code></div>
+    </div>
+    <button class="alt" id="libraryBtn">My library →</button>
+  </div>
+
+  <div class="bar">
+    <input id="q" placeholder="Search a film title…" autofocus />
+    <button id="searchBtn">Search</button>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="grid" id="results"></div>
+
+  <details style="margin-top:24px">
+    <summary style="cursor:pointer;color:#888">Raw response</summary>
+    <pre id="raw">—</pre>
+  </details>
+
+  <script>
+    // Same-origin when served by FastAPI; change if you open this file directly.
+    const API = location.origin.startsWith("http") ? location.origin : "http://localhost:8000";
+    // Best-guess cover base for streamingcommunity images; adjust if blank.
+    const IMG_BASE = "https://cdn.streamingcommunityz.us/images/";
+    document.getElementById("base").textContent = API;
+
+    const q = document.getElementById("q");
+    const statusEl = document.getElementById("status");
+    const results = document.getElementById("results");
+    const raw = document.getElementById("raw");
+
+    document.getElementById("libraryBtn").onclick = () => { location.href = "/offline.html"; };
+
+    async function search() {
+      const title = q.value.trim();
+      if (!title) return;
+      statusEl.textContent = "Searching…";
+      results.innerHTML = "";
+      try {
+        const res = await fetch(`${API}/api/search?title=${encodeURIComponent(title)}`, { method: "POST" });
+        const data = await res.json();
+        raw.textContent = JSON.stringify(data, null, 2);
+        if (!Array.isArray(data)) {
+          statusEl.textContent = "Unexpected response (see raw below).";
+          return;
+        }
+        statusEl.textContent = `${data.length} result(s).`;
+        render(data);
+      } catch (e) {
+        statusEl.textContent = "Request failed: " + e.message;
+      }
+    }
+
+    function render(films) {
+      for (const f of films) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <img src="${f.cover ? IMG_BASE + f.cover : ""}" alt=""
+               onerror="this.style.opacity=.2" />
+          <div class="body">
+            <div class="title">${f.title ?? "?"}</div>
+            <div class="meta">slug: ${f.slug ?? "?"}<br>id: ${f.id ?? "?"}</div>
+            <button class="dl">Download</button>
+          </div>`;
+        card.querySelector(".dl").onclick = () => download(f, card.querySelector(".dl"));
+        results.appendChild(card);
+      }
+    }
+
+    async function download(film, btn) {
+      btn.disabled = true;
+      btn.textContent = "Downloading…";
+      try {
+        const res = await fetch(`${API}/api/download`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(film),
+        });
+        const data = await res.json().catch(() => ({}));
+        raw.textContent = JSON.stringify(data, null, 2);
+        btn.textContent = res.ok ? "Sent ✓" : "Failed";
+      } catch (e) {
+        btn.textContent = "Error";
+        statusEl.textContent = "Download failed: " + e.message;
+      }
+    }
+
+    document.getElementById("searchBtn").onclick = search;
+    q.addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+  </script>
+</body>
+</html>

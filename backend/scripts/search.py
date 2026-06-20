@@ -1,8 +1,8 @@
 import requests
 import json
-from film import Film
+from backend.scripts.film import Film
 from bs4 import BeautifulSoup
-URL = "https://streamingcommunityz.eu"
+URL = "https://streamingcommunityz.us"
 
 
 def find_image_cover( images : list ):
@@ -40,18 +40,3 @@ def search_by_title( name : str ) -> list:
     
     return films_found
 
-
-        
-
-films = search_by_title("iron man")
-if not films:
-    exit()
-print("Select which film you want to download")
-for i,f in enumerate(films):
-    print(f"{i+1}. {f.title}")
-
-choice = int(input("> "))
-
-from download import download_film
-
-download_film(films[choice-1])
