@@ -6,9 +6,10 @@ class Film:
         self.id = id
         
 class Stored:
-    def __init__(self, id : int, title : str, path : str, cover : str, status : str):
+    def __init__(self, id : int, title : str, path : str, cover : str, status : str, progress : int = 0):
         self.id = id
         self.title = title
         self.path = path
         self.cover = cover
         self.status = status
+        self.progress = progress

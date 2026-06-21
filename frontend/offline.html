@@ -65,6 +65,8 @@
     const player = document.getElementById("player");
     const modalTitle = document.getElementById("modalTitle");
 
+    let pollTimer;
+
     function openPlayer(film) {
       modalTitle.textContent = film.title ?? "";
       player.src = `/movies/${encodeURIComponent(film.path)}`;
@@ -81,6 +83,40 @@
     modal.onclick = (e) => { if (e.target === modal) closePlayer(); };
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePlayer(); });
 
+    // Signature of which films exist and their status — changes only on a real transition.
+    const sig = (films) => films.map((f) => `${f.id}:${(f.status ?? "").toLowerCase()}`).join("|");
+    let lastSig = "";
+
+    function applyMeta(data) {
+      const ready = data.filter((f) => (f.status ?? "").toLowerCase() === "completed").length;
+      shelfChip.classList.toggle("live", data.length > 0);
+      shelfCount.textContent = `${data.length} reel${data.length === 1 ? "" : "s"} · ${ready} ready`;
+      statusEl.textContent = `${data.length}`;
+    }
+
+    // Nudge only the bars in place — no DOM rebuild, so the grid never flickers.
+    function patchProgress(films) {
+      films.forEach((f) => {
+        if ((f.status ?? "").toLowerCase() !== "downloading") return;
+        const card = results.querySelector(`.film[data-id="${f.id}"]`);
+        if (!card) return;
+        const pct = Math.max(0, Math.min(100, Math.round(f.progress ?? 0)));
+        const fill = card.querySelector(".track .fill");
+        const track = card.querySelector(".track");
+        const badge = card.querySelector(".badge");
+        if (fill) fill.style.width = pct + "%";
+        if (track) track.setAttribute("aria-valuenow", pct);
+        if (badge) badge.textContent = `Downloading ${pct}%`;
+      });
+    }
+
+    function schedulePoll(data) {
+      clearTimeout(pollTimer);
+      if (data && data.some((f) => (f.status ?? "").toLowerCase() === "downloading")) {
+        pollTimer = setTimeout(pollProgress, 1000);
+      }
+    }
+
     async function loadFilms() {
       try {
         const res = await fetch(`${API}/api/films`);
@@ -91,16 +127,34 @@
           shelfCount.textContent = "—";
           return;
         }
-        const ready = data.filter((f) => (f.status ?? "").toLowerCase() === "completed").length;
-        shelfChip.classList.toggle("live", data.length > 0);
-        shelfCount.textContent = `${data.length} reel${data.length === 1 ? "" : "s"} · ${ready} ready`;
-        statusEl.textContent = `${data.length}`;
+        applyMeta(data);
+        lastSig = sig(data);
         render(data);
+        schedulePoll(data);
       } catch (e) {
         statusEl.textContent = "offline";
         shelfCount.textContent = "no connection";
         results.innerHTML = "";
         emptyState("Couldn't reach the shelf.", "The server isn't responding. Start the backend and reload.");
+      }
+    }
+
+    async function pollProgress() {
+      try {
+        const res = await fetch(`${API}/api/films`);
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        raw.textContent = JSON.stringify(data, null, 2);
+        applyMeta(data);
+        if (sig(data) !== lastSig) {  // a download started/finished → rebuild grid
+          lastSig = sig(data);
+          render(data);
+        } else {                      // same cards → just slide the bars
+          patchProgress(data);
+        }
+        schedulePoll(data);
+      } catch (e) {
+        pollTimer = setTimeout(pollProgress, 1000); // transient blip — keep last view, retry
       }
     }
 
@@ -113,9 +167,11 @@
       films.forEach((f, i) => {
         const status = (f.status ?? "").toLowerCase();
         const playable = status === "completed" && f.path;
-        const label = status === "completed" ? "On shelf" : status === "downloading" ? "Downloading" : (f.status ?? "—");
+        const pct = Math.max(0, Math.min(100, Math.round(f.progress ?? 0)));
+        const label = status === "completed" ? "On shelf" : status === "downloading" ? `Downloading ${pct}%` : (f.status ?? "—");
         const card = document.createElement("article");
         card.className = "film" + (playable ? " playable" : "");
+        card.dataset.id = f.id;
         card.style.setProperty("--i", i);
         const cover = f.cover ? `/covers/${encodeURIComponent(f.cover)}` : "";
         card.innerHTML = `
@@ -131,6 +187,9 @@
             <div class="foot">
               <span class="badge ${status}">${escapeHtml(label)}</span>
             </div>
+            ${status === "downloading"
+              ? `<div class="track" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:${pct}%"></div></div>`
+              : ""}
           </div>`;
         if (playable) card.querySelector(".frame").onclick = () => openPlayer(f);
         results.appendChild(card);

@@ -29,6 +29,9 @@ ONLINE_FRONTEND = FRONTEND_DIR / "index.html"
 OFFLINE_FRONTEND = FRONTEND_DIR / "offline.html"
 COVERS_DIR = ROOT / "Covers"
 MOVIES_DIR = ROOT / "Movies"
+# StaticFiles refuses to mount a missing directory — ensure they exist.
+COVERS_DIR.mkdir(exist_ok=True)
+MOVIES_DIR.mkdir(exist_ok=True)
 
 
 class FilmIn(BaseModel):
@@ -46,7 +49,7 @@ def home():
 @app.post("/api/search")
 def search(title: str):
     if not title:
-        return {"status": "error"}
+        raise HTTPException(status_code=400, detail="Title required")
     films = search_by_title(title)
     return films
 
@@ -90,8 +93,8 @@ def browse(path: str | None = None):
 def export(id, new_path : str):
     path = get_path(id)
     if path == None:
-        raise HTTPException(status=400, detail="No film was found with that id")
-    src = 'Movies' / Path(path)
+        raise HTTPException(status_code=400, detail="No film was found with that id")
+    src = MOVIES_DIR / Path(path)
     dest = Path(new_path)
     if not src.is_file():
         raise HTTPException(status_code=404, detail="The source isn't a file or doesn't exist")
@@ -104,7 +107,6 @@ def export(id, new_path : str):
     delete_film(id)
     return {"status":"ok"}
 
-# Cover images for downloaded films. Mounted before the "/" catch-all so it matches first.
 app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
 app.mount("/movies", StaticFiles(directory=MOVIES_DIR), name="movies")
 app.mount("/", StaticFiles(directory=FRONTEND_DIR), name="frontend")

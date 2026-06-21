@@ -1,0 +1,12 @@
+services:
+  home-netflix:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Movies:/app/Movies
+      - ./Covers:/app/Covers
+      - ./data:/app/data
+      # Live code — uvicorn --reload picks up edits without a rebuild.
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend

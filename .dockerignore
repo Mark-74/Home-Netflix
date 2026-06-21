@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+Movies/
+Covers/
+database.db
+*.db
+.venv
+venv
+node_modules
+frontend/node_modules
+.env
+Plans/
+*.md

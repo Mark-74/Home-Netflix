@@ -27,7 +27,6 @@ def search_by_title( name : str ) -> list:
     }
     r = session.get(URL + f'/it/archive?search={name}',headers=headers)
     if r.status_code != 200:
-        print(f"Error {r.status_code} occurred while searching films")
         return
     soup = BeautifulSoup(r.text,'html.parser')
     data = soup.find('div',id="app")

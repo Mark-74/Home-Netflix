@@ -179,6 +179,11 @@ body{
   background:linear-gradient(90deg,transparent,rgba(232,163,61,.14),transparent);
   background-size:200% 100%;animation:shimmer 1.6s linear infinite;}
 
+/* download progress — the reel filling */
+.film .track{height:3px;border-radius:2px;background:var(--ash);overflow:hidden;}
+.film .track .fill{height:100%;background:var(--bulb);box-shadow:0 0 12px var(--glow);
+  transition:width .4s var(--ease);}
+
 /* ---- Empty / message states ---- */
 .empty-state{border:1px dashed var(--line);border-radius:6px;padding:54px 28px;text-align:center;
   background:var(--velvet);}
