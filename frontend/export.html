@@ -188,6 +188,15 @@
     const shortcuts = document.getElementById("shortcuts");
     const hereInfo  = document.getElementById("hereInfo");
     let browsePath = null;   // absolute path currently shown
+    let navRoots = [];       // paths the user may sit at or climb to (home, Videos, drives)
+
+    // A path is reachable if it is one of the roots, or sits under one.
+    function isAllowedPath(p) {
+      return navRoots.some((r) => {
+        const root = r.replace(/\/+$/, "");
+        return p === root || p.startsWith(root + "/");
+      });
+    }
 
     async function navigate(path) {
       const q = path ? `?path=${encodeURIComponent(path)}` : "";
@@ -201,6 +210,7 @@
           return;
         }
         browsePath = data.path;
+        navRoots = data.roots || [];
         renderCrumbs(data.path);
         renderShortcuts(data.shortcuts || []);
         renderDirs(data.dirs);
@@ -220,7 +230,11 @@
         const b = document.createElement("button");
         b.className = "seg" + (isHere ? " here" : "");
         b.textContent = label;
-        if (!isHere) b.onclick = () => navigate(target);
+        // Only ancestors inside an allowed root are clickable; off-limits ones
+        // (e.g. "/") render disabled so they can't be reached.
+        const reachable = !isHere && isAllowedPath(target);
+        if (reachable) b.onclick = () => navigate(target);
+        else if (!isHere) b.disabled = true;
         return b;
       };
       crumbs.appendChild(mkSeg("/", "/", parts.length === 0));
@@ -263,7 +277,7 @@
     function openBrowser() {
       pick.classList.add("open");
       browsePath = null;
-      navigate(dest.value.trim() || null); // start from saved folder if valid, else home
+      navigate(null); // always start at home
     }
     function closeBrowser() { pick.classList.remove("open"); }
 

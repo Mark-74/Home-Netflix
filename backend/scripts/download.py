@@ -15,8 +15,8 @@ log.setLevel(logging.INFO)
 log.propagate = False
 
 
-URL = "https://streamingcommunityz.us"
-COVER_URL = "https://cdn.streamingcommunityz.us/images/"
+URL = "https://streamingcommunityz.tech"
+COVER_URL = "https://cdn.streamingcommunityz.tech/images/"
 async def download_film(movie : Film):
     async with async_playwright() as p:
         download_url = None

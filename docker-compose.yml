@@ -7,6 +7,11 @@ services:
       - ./Movies:/app/Movies
       - ./Covers:/app/Covers
       - ./data:/app/data
-      # Live code — uvicorn --reload picks up edits without a rebuild.
       - ./backend:/app/backend
       - ./frontend:/app/frontend
+      - ~/Videos:/root/Videos
+      - type : bind
+        source : /media
+        target : /media
+        bind:
+          propagation : rshared
