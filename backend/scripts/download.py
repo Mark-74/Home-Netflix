@@ -4,6 +4,7 @@ import yt_dlp
 import requests
 from playwright.async_api import async_playwright
 from backend.scripts.film import Film
+from backend.scripts.urlgetter import URL, COVER_URL
 from backend.db import add_film, update_status, get_status, delete_film, update_progress
 
 log = logging.getLogger("download")
@@ -15,8 +16,6 @@ log.setLevel(logging.INFO)
 log.propagate = False
 
 
-URL = "https://streamingcommunityz.tech"
-COVER_URL = "https://cdn.streamingcommunityz.tech/images/"
 async def download_film(movie : Film):
     async with async_playwright() as p:
         download_url = None

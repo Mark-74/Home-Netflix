@@ -42,7 +42,12 @@
 
   <script>
     const API = location.origin.startsWith("http") ? location.origin : "http://localhost:8000";
-    const IMG_BASE = "https://cdn.streamingcommunityz.us/images/";
+    // Cover host follows the live (rotating) domain — fetched from the backend.
+    let IMG_BASE = "";
+    fetch(`${API}/api/config`)
+      .then((r) => r.json())
+      .then((c) => { IMG_BASE = c.cover_base || ""; })
+      .catch(() => {});
 
     const q = document.getElementById("q");
     const statusEl = document.getElementById("status");

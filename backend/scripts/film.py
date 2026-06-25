@@ -13,3 +13,4 @@ class Stored:
         self.cover = cover
         self.status = status
         self.progress = progress
+

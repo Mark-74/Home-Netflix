@@ -6,3 +6,4 @@ beautifulsoup4
 playwright
 yt-dlp
 pycryptodomex
+telethon

@@ -1,9 +1,8 @@
-import requests
 import json
+import requests
 from backend.scripts.film import Film
+from backend.scripts.urlgetter import URL
 from bs4 import BeautifulSoup
-URL = "https://streamingcommunityz.tech"
-
 
 def find_image_cover( images : list ):
     for img in images:

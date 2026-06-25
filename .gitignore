@@ -2,3 +2,4 @@
 Movies/**
 Covers/**
 *.db
+.env

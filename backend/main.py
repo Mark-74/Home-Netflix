@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from backend.scripts.search import search_by_title
 from backend.scripts.download import download_film
+from backend.scripts.urlgetter import URL, COVER_URL
 from backend.db import list_films, delete_film, get_path
 import asyncio
 import shutil
@@ -29,7 +30,6 @@ ONLINE_FRONTEND = FRONTEND_DIR / "index.html"
 OFFLINE_FRONTEND = FRONTEND_DIR / "offline.html"
 COVERS_DIR = ROOT / "Covers"
 MOVIES_DIR = ROOT / "Movies"
-# StaticFiles refuses to mount a missing directory — ensure they exist.
 COVERS_DIR.mkdir(exist_ok=True)
 MOVIES_DIR.mkdir(exist_ok=True)
 
@@ -58,6 +58,12 @@ def search(title: str):
 async def download(film: FilmIn, background_tasks : BackgroundTasks):
     background_tasks.add_task(download_film,film) # download_film only reads .id and .title
     return {"status": "ok"}
+
+@app.get('/api/config')
+def config():
+    # Frontend builds cover image URLs from the live (rotating) domain instead of
+    # hardcoding it. Served from the same dynamic source as search/download.
+    return {"url": URL, "cover_base": COVER_URL}
 
 @app.get('/api/films')
 def get_film():
