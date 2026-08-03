@@ -1,11 +1,18 @@
 import asyncio
 import logging
+import os
 import yt_dlp
 import requests
 from playwright.async_api import async_playwright
 from backend.scripts.film import Film
 from backend.scripts.urlgetter import URL, COVER_URL
 from backend.db import add_film, update_status, get_status, delete_film, update_progress
+
+# Playwright's own Chromium is built without proprietary codecs on arm64, so
+# jwplayer finds no provider for the H.264/AAC stream, aborts setup (error
+# 102630) and never requests the playlist. CHROMIUM_PATH points at Debian's
+# chromium, which does have them. Unset (bare-metal run) = Playwright's build.
+CHROMIUM_PATH = os.environ.get("CHROMIUM_PATH") or None
 
 log = logging.getLogger("download")
 if not log.handlers:
@@ -20,7 +27,7 @@ async def download_film(movie : Film):
     async with async_playwright() as p:
         download_url = None
         found = asyncio.Event()
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, executable_path=CHROMIUM_PATH)
         page = await browser.new_page()
 
         def handle_req(request):

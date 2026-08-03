@@ -104,7 +104,11 @@ Three independent static pages, no framework, no bundler:
 
 ## Docker
 
-The image is `python:3.11-slim` plus `ffmpeg` (required by yt-dlp for muxing/remuxing) and Playwright's Chromium plus its OS-level dependencies (`playwright install --with-deps chromium`). `docker-compose.yml` bind-mounts `Movies/`, `Covers/`, `data/`, and both `backend/` and `frontend/` from the host (so code edits are picked up by uvicorn's `--reload` without rebuilding the image), plus `~/Videos` and `/media` (with `rshared` propagation, so drives mounted on the host after the container starts are still visible inside it) to support the export destination browser.
+The image is `python:3.11-slim` plus `ffmpeg` (required by yt-dlp for muxing/remuxing) and Debian's `chromium` package, which Playwright is pointed at via the `CHROMIUM_PATH` env var.
+
+Playwright's own bundled Chromium is deliberately **not** used. It ships without proprietary codecs on arm64 (it has them on x86_64), and jwplayer decides which playback provider to use by asking the browser what it can decode. With no H.264/AAC it concludes nothing can play the item, aborts setup with error 102630, and never issues the playlist request the download pipeline is listening for — so downloads failed on a Raspberry Pi while working on an x86 machine. Debian's package is built with those codecs and, conveniently, tracks the same Chromium major version Playwright expects. `CHROMIUM_PATH` is unset outside Docker, in which case Playwright falls back to its own build.
+
+`docker-compose.yml` bind-mounts `Movies/`, `Covers/`, `data/`, and both `backend/` and `frontend/` from the host (so code edits are picked up by uvicorn's `--reload` without rebuilding the image), plus `~/Videos` and `/media` (with `rshared` propagation, so drives mounted on the host after the container starts are still visible inside it) to support the export destination browser.
 
 ## Known rough edges
 

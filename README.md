@@ -70,3 +70,12 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 `ffmpeg` must be installed on the host (the Docker image installs it automatically; see `Dockerfile`).
+
+On **arm64** (Raspberry Pi and similar), Playwright's bundled Chromium has no H.264/AAC support and the video player refuses to start, so downloads never find a stream. Install your distro's Chromium instead and point the app at it:
+
+```bash
+sudo apt install chromium
+export CHROMIUM_PATH=/usr/bin/chromium
+```
+
+The Docker image already does this for every architecture.
