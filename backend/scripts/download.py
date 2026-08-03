@@ -31,9 +31,21 @@ async def download_film(movie : Film):
         page = await browser.new_page()
 
         def handle_req(request):
+            # Keep the FIRST match only. The player goes on to request one
+            # playlist per track, and without this guard the last of those wins.
             nonlocal download_url
-            if "token" in request.url and "playlist/" in request.url and not "jwplayer" in request.url:
-                download_url = request.url
+            if download_url is not None:
+                return
+            url = request.url
+            # The master playlist is the one without a type= track selector.
+            # type=video / type=audio / type=subtitle each hold a single track,
+            # and some titles ship audio as its own rendition rather than muxed
+            # into the video one — handing yt-dlp the video track then produces
+            # a silent file. The master lists every track, so yt-dlp can pair
+            # them up and merge.
+            if "token" in url and "playlist/" in url and "jwplayer" not in url \
+                    and "type=" not in url:
+                download_url = url
                 found.set()
 
         BLOCK_TYPES = {"image", "stylesheet", "font"}
